@@ -24,7 +24,6 @@
 <div class="container">
     <h2>出席スキャン画面</h2>
     
-    <!-- クラス・出席番号の設定エリア -->
     <div id="setup-area" class="setup-box" style="display: none;">
         <p style="margin-top:0; font-weight:bold;">最初に所属を設定してください</p>
         <div class="input-group">
@@ -48,13 +47,14 @@
 
 <script>
     const SECRET_KEY = "SCHOOL_SECRET_2026";
-    // ⚠️ あなたのGASのウェブアプリURLを貼り付けてください
     const GAS_URL = "https://script.google.com/macros/s/AKfycbz5zvcDymU7vrjrer3-CPraotwcaMxDKPmpQY8PLBGlE1tGlvrhax1vrOWQm2pr9tCbrA/exec";
 
     const video = document.createElement("video");
     const canvasElement = document.getElementById("canvas");
     const canvas = canvasElement.getContext("2d");
+    const resultElement = document.getElementById("result");
     let isScanning = true;
+    let lastTickTime = 0;
 
     function checkStudentInfo() {
         const savedClass = localStorage.getItem("student_class");
@@ -75,11 +75,10 @@
         const cls = document.getElementById("class-input").value.trim();
         const num = document.getElementById("num-input").value.trim();
         if (!cls || !num) { alert("両方入力してください"); return; }
-        
         localStorage.setItem("student_class", cls);
         localStorage.setItem("student_num", num);
         checkStudentInfo();
-        startCamera(); // 登録完了時にカメラを起動
+        startCamera();
     }
 
     function clearStudentInfo() {
@@ -90,54 +89,37 @@
         }
     }
 
-    // カメラ起動関数（失敗時のバックアップ機能付き）
     function startCamera() {
-        // 第一候補：外側のカメラ（背面カメラ）を狙う
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then(function(stream) {
-                initVideoStream(stream);
-            })
-            .catch(function(err) {
-                console.warn("背面カメラの起動に失敗。インカメラまたは標準カメラでの起動を試みます...", err);
-                // 第二候補：エラーが出たら、条件を緩めて「何でもいいからカメラを起動する」
+            .then(function(stream) { initVideoStream(stream); })
+            .catch(function() {
                 navigator.mediaDevices.getUserMedia({ video: true })
-                    .then(function(stream) {
-                        initVideoStream(stream);
-                    })
-                    .catch(function(finalErr) {
-                        alert("カメラを起動できませんでした。ブラウザのカメラ許可設定を確認してください。");
-                        console.error(finalErr);
-                    });
+                    .then(function(stream) { initVideoStream(stream); })
+                    .catch(function() { alert("カメラを起動できませんでした。"); });
             });
     }
 
     function initVideoStream(stream) {
         video.srcObject = stream;
-        video.setAttribute("playsinline", true); // iOS（Safari）対策
+        video.setAttribute("playsinline", true);
         video.play();
         requestAnimationFrame(tick);
     }
 
-    // 最初にページが開かれた時、すでに登録されていればカメラを起動する
-    window.onload = function() {
-        checkStudentInfo();
-        const savedClass = localStorage.getItem("student_class");
-        const savedNum = localStorage.getItem("student_num");
-        if (savedClass && savedNum) {
-            startCamera();
-        }
-    };
-
-    function tick() {
+    function tick(now) {
         if (!isScanning) return;
-        if (video.readyState === video.HAVE_ENOUGH_DATA) {
-            canvasElement.height = video.videoHeight;
-            canvasElement.width = video.videoWidth;
-            canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
-            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
-
-            if (code) { isScanning = false; checkAttendance(code.data); }
+        
+        // 処理負荷軽減：約100msごとに解析を実行
+        if (now - lastTickTime > 100) {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvasElement.height = video.videoHeight;
+                canvasElement.width = video.videoWidth;
+                canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+                if (code) { isScanning = false; checkAttendance(code.data); }
+            }
+            lastTickTime = now;
         }
         requestAnimationFrame(tick);
     }
@@ -149,10 +131,8 @@
         if (scannedToken === (SECRET_KEY + "_" + currentTimeIndex) || scannedToken === (SECRET_KEY + "_" + (currentTimeIndex - 1))) {
             resultElement.className = "result-box success";
             resultElement.innerHTML = "⏳ 出席を送信中...";
-
             fetch(GAS_URL, {
-                method: "POST",
-                mode: "no-cors",
+                method: "POST", mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     student_class: localStorage.getItem("student_class"),
@@ -168,6 +148,11 @@
             setTimeout(() => { resultElement.style.display = "none"; isScanning = true; }, 3000);
         }
     }
+
+    window.onload = function() {
+        checkStudentInfo();
+        if (localStorage.getItem("student_class")) startCamera();
+    };
 </script>
 </body>
 </html>
