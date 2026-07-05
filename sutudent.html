@@ -79,7 +79,7 @@
         localStorage.setItem("student_class", cls);
         localStorage.setItem("student_num", num);
         checkStudentInfo();
-        requestAnimationFrame(tick);
+        startCamera(); // 登録完了時にカメラを起動
     }
 
     function clearStudentInfo() {
@@ -90,13 +90,43 @@
         }
     }
 
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function(stream) {
+    // カメラ起動関数（失敗時のバックアップ機能付き）
+    function startCamera() {
+        // 第一候補：外側のカメラ（背面カメラ）を狙う
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(function(stream) {
+                initVideoStream(stream);
+            })
+            .catch(function(err) {
+                console.warn("背面カメラの起動に失敗。インカメラまたは標準カメラでの起動を試みます...", err);
+                // 第二候補：エラーが出たら、条件を緩めて「何でもいいからカメラを起動する」
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function(stream) {
+                        initVideoStream(stream);
+                    })
+                    .catch(function(finalErr) {
+                        alert("カメラを起動できませんでした。ブラウザのカメラ許可設定を確認してください。");
+                        console.error(finalErr);
+                    });
+            });
+    }
+
+    function initVideoStream(stream) {
         video.srcObject = stream;
-        video.setAttribute("playsinline", true);
+        video.setAttribute("playsinline", true); // iOS（Safari）対策
         video.play();
-        checkStudentInfo();
         requestAnimationFrame(tick);
-    });
+    }
+
+    // 最初にページが開かれた時、すでに登録されていればカメラを起動する
+    window.onload = function() {
+        checkStudentInfo();
+        const savedClass = localStorage.getItem("student_class");
+        const savedNum = localStorage.getItem("student_num");
+        if (savedClass && savedNum) {
+            startCamera();
+        }
+    };
 
     function tick() {
         if (!isScanning) return;
