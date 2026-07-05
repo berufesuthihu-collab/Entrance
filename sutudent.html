@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生徒用 出席スキャン</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #f5f7fb; padding: 20px; }
+        .container { max-width: 400px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        #canvas { width: 100%; max-width: 320px; border-radius: 8px; background: #eee; transform: scaleX(-1); }
+        .result-box { margin-top: 20px; padding: 15px; border-radius: 8px; font-weight: bold; font-size: 1.1rem; display: none; }
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+        .setup-box { background: #e1f5fe; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        .input-group { margin: 10px 0; }
+        input[type="text"], input[type="number"] { padding: 8px; font-size: 1rem; width: 40%; border-radius: 4px; border: 1px solid #ccc; }
+        button { padding: 8px 20px; background-color: #0288d1; color: white; border: none; border-radius: 4px; font-size: 1rem; margin-top: 10px; }
+        .info-display { color: #555; margin-bottom: 15px; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>出席スキャン画面</h2>
+    
+    <!-- クラス・出席番号の設定エリア -->
+    <div id="setup-area" class="setup-box" style="display: none;">
+        <p style="margin-top:0; font-weight:bold;">最初に所属を設定してください</p>
+        <div class="input-group">
+            <input type="text" id="class-input" placeholder="例: 1-A" style="width:60%"> クラス
+        </div>
+        <div class="input-group">
+            <input type="number" id="num-input" placeholder="例: 15" style="width:60%"> 出席番号
+        </div>
+        <button onclick="saveStudentInfo()">登録してカメラ起動</button>
+    </div>
+    
+    <div id="id-display-area" class="info-display" style="display: none;">
+        設定中: <strong id="current-info"></strong> 
+        <a href="#" onclick="clearStudentInfo()" style="color:#ff4757; margin-left:10px; font-size:0.8rem;">[変更]</a>
+    </div>
+
+    <p>教室のQRコードをカメラに向けてください</p>
+    <canvas id="canvas"></canvas>
+    <div id="result" class="result-box"></div>
+</div>
+
+<script>
+    const SECRET_KEY = "SCHOOL_SECRET_2026";
+    // ⚠️ あなたのGASのウェブアプリURLを貼り付けてください
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbz5zvcDymU7vrjrer3-CPraotwcaMxDKPmpQY8PLBGlE1tGlvrhax1vrOWQm2pr9tCbrA/exec";
+
+    const video = document.createElement("video");
+    const canvasElement = document.getElementById("canvas");
+    const canvas = canvasElement.getContext("2d");
+    let isScanning = true;
+
+    function checkStudentInfo() {
+        const savedClass = localStorage.getItem("student_class");
+        const savedNum = localStorage.getItem("student_num");
+        if (!savedClass || !savedNum) {
+            document.getElementById("setup-area").style.display = "block";
+            document.getElementById("id-display-area").style.display = "none";
+            isScanning = false;
+        } else {
+            document.getElementById("setup-area").style.display = "none";
+            document.getElementById("id-display-area").style.display = "block";
+            document.getElementById("current-info").innerText = savedClass + "組 " + savedNum + "番";
+            isScanning = true;
+        }
+    }
+
+    function saveStudentInfo() {
+        const cls = document.getElementById("class-input").value.trim();
+        const num = document.getElementById("num-input").value.trim();
+        if (!cls || !num) { alert("両方入力してください"); return; }
+        
+        localStorage.setItem("student_class", cls);
+        localStorage.setItem("student_num", num);
+        checkStudentInfo();
+        requestAnimationFrame(tick);
+    }
+
+    function clearStudentInfo() {
+        if(confirm("登録情報を変更しますか？")) {
+            localStorage.removeItem("student_class");
+            localStorage.removeItem("student_num");
+            checkStudentInfo();
+        }
+    }
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } }).then(function(stream) {
+        video.srcObject = stream;
+        video.setAttribute("playsinline", true);
+        video.play();
+        checkStudentInfo();
+        requestAnimationFrame(tick);
+    });
+
+    function tick() {
+        if (!isScanning) return;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvasElement.height = video.videoHeight;
+            canvasElement.width = video.videoWidth;
+            canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+            const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+
+            if (code) { isScanning = false; checkAttendance(code.data); }
+        }
+        requestAnimationFrame(tick);
+    }
+
+    function checkAttendance(scannedToken) {
+        resultElement.style.display = "block";
+        const now = new Date();
+        const currentTimeIndex = Math.floor(now.getTime() / 30000);
+        if (scannedToken === (SECRET_KEY + "_" + currentTimeIndex) || scannedToken === (SECRET_KEY + "_" + (currentTimeIndex - 1))) {
+            resultElement.className = "result-box success";
+            resultElement.innerHTML = "⏳ 出席を送信中...";
+
+            fetch(GAS_URL, {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    student_class: localStorage.getItem("student_class"),
+                    student_num: localStorage.getItem("student_num")
+                })
+            }).then(() => {
+                resultElement.innerHTML = "🎉 出席を記録しました！";
+                setTimeout(() => { window.location.href = "https://www.google.com"; }, 2000);
+            });
+        } else {
+            resultElement.className = "result-box error";
+            resultElement.innerHTML = "❌ 有効期限切れのQRコードです";
+            setTimeout(() => { resultElement.style.display = "none"; isScanning = true; }, 3000);
+        }
+    }
+</script>
+</body>
+</html>

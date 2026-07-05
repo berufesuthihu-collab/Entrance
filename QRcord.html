@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自動更新 出席QRコード</title>
+    <!-- QRコードを生成するためのライブラリを読み込みます -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            text-align: center;
+            background-color: #f5f7fb;
+            color: #333;
+            padding: 50px 20px;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        #qrcode {
+            display: flex;
+            justify-content: center;
+            margin: 30px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>出席登録用QRコード</h2>
+    <p>スマホで読み取って出席を登録してください。</p>
+    
+    <!-- ここに自動更新されるQRコードが表示されます -->
+    <div id="qrcode"></div>
+</div>
+
+<script>
+    // 先生と生徒で共有する「秘密の鍵」
+    const SECRET_KEY = "SCHOOL_SECRET_2026";
+    
+    // QRコードを表示するエリアを取得
+    const qrcodeElement = document.getElementById("qrcode");
+    
+    // QRCodeライブラリの初期化
+    const qrcode = new QRCode(qrcodeElement, {
+        text: "init",
+        width: 256,
+        height: 256,
+        colorDark : "#000000",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+    });
+
+    // QRコードを更新する関数
+    function updateQRCode() {
+        const now = new Date();
+        // 30秒単位のタイムスタンプを作成
+        const timeIndex = Math.floor(now.getTime() / 30000);
+        
+        // 秘密の鍵と時間を組み合わせて、その30秒間だけの固有の文字列（トークン）を作る
+        const token = SECRET_KEY + "_" + timeIndex;
+        
+        // QRコードの中身を書き換え
+        qrcode.clear();
+        qrcode.makeCode(token);
+    }
+
+    // カウントダウンタイマーの管理
+    let timeLeft = 30;
+    function startTimer() {
+        setInterval(() => {
+            timeLeft--;
+            if (timeLeft <= 0) {
+                updateQRCode(); // 時間がゼロになったらQRコードを更新
+                timeLeft = 30;  // タイマーをリセット
+            }
+        }, 1000); // 1秒ごとに裏側でカウント実行
+    }
+
+    // ページが開かれたときに最初のQRコードを生成してタイマーをスタート
+    updateQRCode();
+    // 最初のタイマーをきれいに合わせるため、現在の秒数から残りを計算
+    timeLeft = 30 - (Math.floor(new Date().getTime() / 1000) % 30);
+    startTimer();
+</script>
+
+</body>
+</html>
