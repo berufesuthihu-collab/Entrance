@@ -109,7 +109,6 @@
     function tick(now) {
         if (!isScanning) return;
         
-        // 処理負荷軽減：約100msごとに解析を実行
         if (now - lastTickTime > 100) {
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 canvasElement.height = video.videoHeight;
@@ -126,11 +125,25 @@
 
     function checkAttendance(scannedToken) {
         resultElement.style.display = "block";
+        
+        // 日付が変わったらリセットするためのチェック
+        const today = new Date().toLocaleDateString();
+        const lastAttendanceDate = localStorage.getItem("last_attendance_date");
+
+        if (lastAttendanceDate === today) {
+            resultElement.className = "result-box error";
+            resultElement.innerHTML = "❌ 本日の出席登録は既に完了しています";
+            isScanning = false;
+            return;
+        }
+
         const now = new Date();
         const currentTimeIndex = Math.floor(now.getTime() / 30000);
+        
         if (scannedToken === (SECRET_KEY + "_" + currentTimeIndex) || scannedToken === (SECRET_KEY + "_" + (currentTimeIndex - 1))) {
             resultElement.className = "result-box success";
             resultElement.innerHTML = "⏳ 出席を送信中...";
+            
             fetch(GAS_URL, {
                 method: "POST", mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
@@ -139,6 +152,8 @@
                     student_num: localStorage.getItem("student_num")
                 })
             }).then(() => {
+                // 送信完了時に今日の日付を保存[cite: 2]
+                localStorage.setItem("last_attendance_date", today);
                 resultElement.innerHTML = "🎉 出席を記録しました！";
                 setTimeout(() => { window.location.href = "https://www.google.com"; }, 2000);
             });
