@@ -4,13 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>【管理画面】本日の出席者一覧</title>
-    <!-- Tailwind CSS を使用して見やすい管理画面を構築 -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-        }
-    </style>
+    <style>body { font-family: 'Helvetica Neue', Arial, sans-serif; }</style>
 </head>
 <body class="bg-slate-50 text-slate-800 p-4 md:p-10">
 
@@ -19,16 +14,14 @@
         <h2 class="text-2xl font-bold text-sky-600 flex items-center gap-2">
             📊 本日の出席者一覧
         </h2>
-        <p class="text-slate-500 text-sm mt-1">クラス順・出席番号順に自動ソートされます（毎日自動リセット）</p>
+        <p class="text-slate-500 text-sm mt-1">クラス・出席番号が重複する場合は最新のスキャン結果のみ表示されます</p>
     </div>
     
-    <!-- 操作コントロールエリア -->
     <div class="flex flex-col sm:flex-row gap-4 mb-6 items-stretch sm:items-center justify-between">
         <button class="bg-teal-500 hover:bg-teal-600 active:bg-teal-700 text-white font-bold px-5 py-2.5 rounded-lg transition duration-200 shadow-sm flex items-center justify-center gap-2" onclick="fetchAttendanceList()">
             🔄 情報を更新
         </button>
         
-        <!-- クラス絞り込み用ドロップダウン -->
         <div class="flex items-center gap-2">
             <label for="class-filter" class="text-sm font-semibold text-slate-600 whitespace-nowrap">クラス絞り込み:</label>
             <select id="class-filter" onchange="filterList()" class="bg-slate-100 border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 w-full sm:w-auto">
@@ -37,103 +30,76 @@
         </div>
     </div>
     
-    <!-- 出席人数カウンター -->
     <div class="text-right text-sm text-slate-600 font-medium mb-4">
         本日の出席人数: <span id="total-count" class="text-lg font-bold text-sky-600">0</span> 名
         <span id="filtered-count-wrapper" class="hidden">（絞り込み後: <span id="filtered-count" class="text-lg font-bold text-teal-600">0</span> 名）</span>
     </div>
 
-    <!-- 出席者テーブル -->
     <div class="overflow-hidden border border-slate-100 rounded-xl shadow-inner">
         <table class="w-full text-center border-collapse">
             <thead>
                 <tr class="bg-slate-100 border-b border-slate-200">
                     <th class="py-3.5 px-4 font-bold text-slate-600 text-sm">クラス</th>
                     <th class="py-3.5 px-4 font-bold text-slate-600 text-sm">出席番号</th>
-                    <th class="py-3.5 px-4 font-bold text-slate-600 text-sm">スキャン時刻</th>
+                    <th class="py-3.5 px-4 font-bold text-slate-600 text-sm">最終スキャン時刻</th>
                 </tr>
             </thead>
             <tbody id="list-body">
-                <tr>
-                    <td colspan="3" class="py-10 text-slate-400 italic">データを読み込み中...</td>
-                </tr>
+                <tr><td colspan="3" class="py-10 text-slate-400 italic">データを読み込み中...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    // ⚠️ あなたのGASのウェブアプリURLを貼り付けてください
     const GAS_URL = "https://script.google.com/macros/s/AKfycbz5zvcDymU7vrjrer3-CPraotwcaMxDKPmpQY8PLBGlE1tGlvrhax1vrOWQm2pr9tCbrA/exec";
+    let allAttendanceData = [];
 
-    let allAttendanceData = []; // 取得した全出席データを保持する変数
-
-    // サーバー（GAS）から出席者リストを取得する関数
     function fetchAttendanceList() {
-        const tbody = document.getElementById("list-body");
-        tbody.innerHTML = '<tr><td colspan="3" class="py-10 text-slate-400 italic">最新のデータを取得中...</td></tr>';
-        
         fetch(GAS_URL)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("HTTP status " + response.status);
-            }
-            return response.json();
-        })
+        .then(res => res.json())
         .then(data => {
-            allAttendanceData = data; 
+            // 重複排除ロジック：同じクラス・番号なら最新（最後）のデータを優先
+            const latestMap = new Map();
+            data.forEach(item => {
+                const key = `${item.class}-${item.num}`;
+                // データが時間順に並んでいる前提。もし最新が不明ならここでDate変換比較が必要です
+                latestMap.set(key, item);
+            });
             
-            updateClassFilterOptions(data); // ドロップダウンの選択肢を更新
-            renderTable(data); // テーブルの描画
+            allAttendanceData = Array.from(latestMap.values());
+            updateClassFilterOptions(allAttendanceData);
+            renderTable(allAttendanceData);
         })
         .catch(err => {
-            console.error("データ取得エラー:", err);
-            // 本番環境用のシンプルなエラー表示
-            tbody.innerHTML = '<tr><td colspan="3" class="py-10 text-red-500 font-semibold">⚠️ データの取得に失敗しました。接続設定を確認してください。</td></tr>';
-            document.getElementById("total-count").innerText = "0";
-            document.getElementById("filtered-count-wrapper").classList.add("hidden");
+            console.error(err);
+            document.getElementById("list-body").innerHTML = '<tr><td colspan="3" class="py-10 text-red-500">⚠️ 取得失敗</td></tr>';
         });
     }
 
-    // 重復のないクラスの絞り込み用ドロップダウンを自動作成する関数
     function updateClassFilterOptions(data) {
         const select = document.getElementById("class-filter");
-        const previousValue = select.value; // 現在選択中のクラスを保持
-        
+        const prev = select.value;
         select.innerHTML = '<option value="all">すべて表示</option>';
-        
-        // クラス名だけを取り出して重複を排除
-        const classes = [...new Set(data.map(item => item.class))];
-        classes.sort();
-
+        const classes = [...new Set(data.map(i => i.class))].sort();
         classes.forEach(cls => {
-            const option = document.createElement("option");
-            option.value = cls;
-            option.textContent = cls + "組";
-            select.appendChild(option);
+            const opt = document.createElement("option");
+            opt.value = cls; opt.textContent = cls + "組";
+            select.appendChild(opt);
         });
-
-        if (classes.includes(previousValue)) {
-            select.value = previousValue;
-        } else {
-            select.value = "all";
-        }
+        select.value = prev;
     }
 
-    // テーブルを描画する関数
     function renderTable(data) {
         const tbody = document.getElementById("list-body");
-        tbody.innerHTML = ""; // クリア
-
-        // 全体の出席人数を更新
-        document.getElementById("total-count").innerText = allAttendanceData.length;
+        tbody.innerHTML = "";
+        document.getElementById("total-count").innerText = data.length;
 
         if (data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="3" class="py-10 text-slate-400 italic">本日出席した生徒はいません。</td></tr>';
             return;
         }
 
-        // データを1行ずつ生成
         data.forEach(student => {
             const tr = document.createElement("tr");
             tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
@@ -146,26 +112,15 @@
         });
     }
 
-    // ドロップダウンが変更されたときに、データをフィルタリングして再描画する関数
     function filterList() {
-        const selectedClass = document.getElementById("class-filter").value;
-        const filteredCountWrapper = document.getElementById("filtered-count-wrapper");
-        
-        if (selectedClass === "all") {
-            renderTable(allAttendanceData);
-            filteredCountWrapper.classList.add("hidden");
-        } else {
-            const filteredData = allAttendanceData.filter(student => student.class === selectedClass);
-            renderTable(filteredData);
-            
-            document.getElementById("filtered-count").innerText = filteredData.length;
-            filteredCountWrapper.classList.remove("hidden");
-        }
+        const val = document.getElementById("class-filter").value;
+        const filtered = (val === "all") ? allAttendanceData : allAttendanceData.filter(i => i.class === val);
+        renderTable(filtered);
+        document.getElementById("filtered-count-wrapper").classList.toggle("hidden", val === "all");
+        document.getElementById("filtered-count").innerText = filtered.length;
     }
 
-    // ページが開かれたときに一度自動でデータを読み込む
     window.onload = fetchAttendanceList;
 </script>
-
 </body>
 </html>
