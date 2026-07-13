@@ -14,8 +14,8 @@
         .error { background-color: #f8d7da; color: #721c24; }
         .setup-box { background: #e1f5fe; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
         .input-group { margin: 10px 0; }
-        input[type="text"], input[type="number"] { padding: 8px; font-size: 1rem; width: 40%; border-radius: 4px; border: 1px solid #ccc; }
-        button { padding: 8px 20px; background-color: #0288d1; color: white; border: none; border-radius: 4px; font-size: 1rem; margin-top: 10px; }
+        select, input[type="number"] { padding: 8px; font-size: 1rem; border-radius: 4px; border: 1px solid #ccc; }
+        button { padding: 8px 20px; background-color: #0288d1; color: white; border: none; border-radius: 4px; font-size: 1rem; margin-top: 10px; cursor: pointer; }
         .info-display { color: #555; margin-bottom: 15px; font-size: 0.95rem; }
     </style>
 </head>
@@ -25,12 +25,25 @@
     <h2>出席スキャン画面</h2>
     
     <div id="setup-area" class="setup-box" style="display: none;">
-        <p style="margin-top:0; font-weight:bold;">最初に所属を設定してください</p>
+        <p style="margin-top:0; font-weight:bold;">所属を設定してください</p>
         <div class="input-group">
-            <input type="text" id="class-input" placeholder="例: 1-A" style="width:60%"> クラス
+            <select id="dept-select">
+                <option value="E">E</option>
+                <option value="S">S</option>
+                <option value="M">M</option>
+                <option value="C">C</option>
+                <option value="D">D</option>
+            </select>
+            <select id="grade-select">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+            </select>
         </div>
         <div class="input-group">
-            <input type="number" id="num-input" placeholder="例: 15" style="width:60%"> 出席番号
+            <input type="number" id="num-input" placeholder="出席番号(例: 15)" style="width:50%">
         </div>
         <button onclick="saveStudentInfo()">登録してカメラ起動</button>
     </div>
@@ -66,16 +79,20 @@
         } else {
             document.getElementById("setup-area").style.display = "none";
             document.getElementById("id-display-area").style.display = "block";
-            document.getElementById("current-info").innerText = savedClass + "組 " + savedNum + "番";
+            document.getElementById("current-info").innerText = savedClass + " " + savedNum + "番";
             isScanning = true;
         }
     }
 
     function saveStudentInfo() {
-        const cls = document.getElementById("class-input").value.trim();
+        const dept = document.getElementById("dept-select").value;
+        const grade = document.getElementById("grade-select").value;
         const num = document.getElementById("num-input").value.trim();
-        if (!cls || !num) { alert("両方入力してください"); return; }
-        localStorage.setItem("student_class", cls);
+        
+        if (!num) { alert("出席番号を入力してください"); return; }
+        
+        const fullClass = dept + grade;
+        localStorage.setItem("student_class", fullClass);
         localStorage.setItem("student_num", num);
         checkStudentInfo();
         startCamera();
@@ -108,7 +125,6 @@
 
     function tick(now) {
         if (!isScanning) return;
-        
         if (now - lastTickTime > 100) {
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 canvasElement.height = video.videoHeight;
@@ -125,14 +141,12 @@
 
     function checkAttendance(scannedToken) {
         resultElement.style.display = "block";
-        
-        // 日付が変わったらリセットするためのチェック
         const today = new Date().toLocaleDateString();
         const lastAttendanceDate = localStorage.getItem("last_attendance_date");
 
         if (lastAttendanceDate === today) {
             resultElement.className = "result-box error";
-            resultElement.innerHTML = "❌ 本日の出席登録は既に完了しています";
+            resultElement.innerHTML = " 本日の出席登録は既に完了しています";
             isScanning = false;
             return;
         }
@@ -142,8 +156,7 @@
         
         if (scannedToken === (SECRET_KEY + "_" + currentTimeIndex) || scannedToken === (SECRET_KEY + "_" + (currentTimeIndex - 1))) {
             resultElement.className = "result-box success";
-            resultElement.innerHTML = "⏳ 出席を送信中...";
-            
+            resultElement.innerHTML = " 出席を送信中...";
             fetch(GAS_URL, {
                 method: "POST", mode: "no-cors",
                 headers: { "Content-Type": "application/json" },
@@ -152,14 +165,13 @@
                     student_num: localStorage.getItem("student_num")
                 })
             }).then(() => {
-                // 送信完了時に今日の日付を保存[cite: 2]
                 localStorage.setItem("last_attendance_date", today);
-                resultElement.innerHTML = "🎉 出席を記録しました！";
+                resultElement.innerHTML = " 出席を記録しました！";
                 setTimeout(() => { window.location.href = "https://www.google.com"; }, 2000);
             });
         } else {
             resultElement.className = "result-box error";
-            resultElement.innerHTML = "❌ 有効期限切れのQRコードです";
+            resultElement.innerHTML = " 有効期限切れのQRコードです";
             setTimeout(() => { resultElement.style.display = "none"; isScanning = true; }, 3000);
         }
     }
