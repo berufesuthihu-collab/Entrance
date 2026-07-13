@@ -11,12 +11,10 @@
     
     <!-- 投稿フォーム -->
     <div class="border-b pb-4 mb-4">
-        <!-- 選択式に変更 -->
         <select id="input-class" class="w-full mb-2 p-2 border rounded">
             <option value="">クラスを選択</option>
             <option value="E1">E1</option><option value="E2">E2</option><option value="E3">E3</option><option value="E4">E4</option><option value="E5">E5</option>
             <option value="S1">S1</option><option value="S2">S2</option><option value="S3">S3</option><option value="S4">S4</option><option value="S5">S5</option>
-            <!-- 他の学科も同様に追加してください -->
         </select>
         <input id="input-title" class="w-full mb-2 p-2 border rounded" placeholder="課題内容">
         <input id="input-date" type="date" class="w-full mb-2 p-2 border rounded">
@@ -30,23 +28,40 @@
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxXcMrH9iQXL-csHplb91V-SacQvlVXjhveZyUOhXQrVJoU9f_T9JkWdOlcbKpHdRsD/exec";
+    // 確認済みの最新GAS URL
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbyD0HPwNUhKpIy3hl_RnJlWSyZi8H8A4i_OiTmZB0CzRse6RALi7-Es3yQRK2XwViVt/exec";
 
     function postTask() {
         const cls = document.getElementById('input-class').value;
-        if (!cls) { alert("クラスを選択してください"); return; }
-        const data = {
-            class: cls,
-            title: document.getElementById('input-title').value,
-            deadline: document.getElementById('input-date').value
-        };
+        const title = document.getElementById('input-title').value;
+        const deadline = document.getElementById('input-date').value;
+
+        if (!cls || !title || !deadline) {
+            alert("全ての項目を入力してください");
+            return;
+        }
+
+        const data = { class: cls, title: title, deadline: deadline };
+
         // データを送信
-        fetch(GAS_URL, { method: "POST", body: JSON.stringify(data) })
-        .then(() => { alert("登録しました"); location.reload(); });
+        fetch(GAS_URL, { 
+            method: "POST", 
+            mode: "cors", // CORS対応を明示
+            body: JSON.stringify(data) 
+        })
+        .then(res => res.json())
+        .then(() => { 
+            alert("登録しました"); 
+            location.reload(); 
+        })
+        .catch(err => {
+            console.error(err);
+            alert("エラーが発生しました。コンソールを確認してください。");
+        });
     }
 
-    // 読み込み時に表示（CORS対策：ブラウザのキャッシュを避けるためURLにタイムスタンプを付与）
-    fetch(GAS_URL + "?v=" + new Date().getTime())
+    // 読み込み時に表示
+    fetch(GAS_URL + "?v=" + new Date().getTime(), { mode: "cors" })
     .then(res => res.json())
     .then(data => {
         const myClass = localStorage.getItem("student_class");
@@ -63,6 +78,10 @@
                 </div>`;
             });
         }
+    })
+    .catch(err => {
+        console.error(err);
+        document.getElementById("list").innerHTML = "<p class='text-red-500'>データの読み込みに失敗しました。</p>";
     });
 </script>
 </body>
