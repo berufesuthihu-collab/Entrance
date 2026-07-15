@@ -61,6 +61,7 @@
 <script>
     const SECRET_KEY = "SCHOOL_SECRET_2026";
     const GAS_URL = "https://script.google.com/macros/s/AKfycbz5zvcDymU7vrjrer3-CPraotwcaMxDKPmpQY8PLBGlE1tGlvrhax1vrOWQm2pr9tCbrA/exec";
+    const TASKS_URL = "https://berufesuthihu-collab.github.io/Entrance/tasks.html";
 
     const video = document.createElement("video");
     const canvasElement = document.getElementById("canvas");
@@ -99,9 +100,18 @@
     }
 
     function clearStudentInfo() {
-        if(confirm("登録情報を変更しますか？")) {
+        const lastChangeDate = localStorage.getItem("last_change_date");
+        const today = new Date().toLocaleDateString();
+
+        if (lastChangeDate === today) {
+            alert("所属情報の変更は1日1回までです。明日以降に変更してください。");
+            return;
+        }
+
+        if(confirm("登録情報を変更しますか？（※本日1回のみ可能です）")) {
             localStorage.removeItem("student_class");
             localStorage.removeItem("student_num");
+            localStorage.setItem("last_change_date", today);
             checkStudentInfo();
         }
     }
@@ -144,10 +154,11 @@
         const today = new Date().toLocaleDateString();
         const lastAttendanceDate = localStorage.getItem("last_attendance_date");
 
+        // 既に本日出席済みの場合
         if (lastAttendanceDate === today) {
             resultElement.className = "result-box error";
-            resultElement.innerHTML = " 本日の出席登録は既に完了しています";
-            isScanning = false;
+            resultElement.innerHTML = " 本日の出席は既に登録済みです。課題ページへ移動します...";
+            setTimeout(() => { window.location.href = TASKS_URL; }, 2000);
             return;
         }
 
@@ -166,8 +177,8 @@
                 })
             }).then(() => {
                 localStorage.setItem("last_attendance_date", today);
-                resultElement.innerHTML = " 出席を記録しました！";
-                setTimeout(() => { window.location.href = "https://berufesuthihu-collab.github.io/Entrance/tasks.html"; }, 2000);
+                resultElement.innerHTML = " 出席を記録しました！課題ページへ移動します...";
+                setTimeout(() => { window.location.href = TASKS_URL; }, 2000);
             });
         } else {
             resultElement.className = "result-box error";
