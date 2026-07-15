@@ -16,15 +16,23 @@
         <div id="taskList"></div>
     </div>
     <script>
-        const GAS_URL = "https://script.google.com/macros/s/AKfycbxhoW2HiSY3DnwC34rvHQ-E1aJinCq7Zku08agTM-9caSFhIz8m8kN24wF4A8tMJpLyqA/exec"; // ここにGASのURLを貼り付け
+        const GAS_URL = "https://script.google.com/macros/s/AKfycby95zICBe7Z4mKhTANpT1mS1djbGy5hinsVSmfI5058utAzix4xnY0Fjmeuthz6Uw-W/exec";
         const myClass = localStorage.getItem("student_class");
-        document.getElementById("class-title").innerText = myClass + "組の課題";
+        document.getElementById("class-title").innerText = (myClass || "未設定") + "組の課題";
 
         function loadTasks() {
+            if(!myClass) return;
             fetch(`${GAS_URL}?mode=tasks&class=${myClass}`)
             .then(res => res.json()).then(data => {
                 const list = document.getElementById("taskList");
-                list.innerHTML = data.map(t => `<div class='border-b p-2'>${t.name} (期限: ${t.deadline})</div>`).join('');
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                
+                // 期限が今日以降の課題のみ表示
+                const filtered = data.filter(t => new Date(t.deadline) >= today);
+                list.innerHTML = filtered.map(t => 
+                    `<div class='border-b p-2'><strong>${t.name}</strong><br>期限: ${t.deadline}</div>`
+                ).join('');
             });
         }
 
@@ -36,7 +44,10 @@
                     task_name: document.getElementById("tName").value,
                     deadline: document.getElementById("tDeadline").value
                 })
-            }).then(() => { loadTasks(); });
+            }).then(() => { 
+                alert("課題を追加しました");
+                loadTasks(); 
+            });
         }
         loadTasks();
     </script>
