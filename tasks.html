@@ -28,7 +28,6 @@
                 const today = new Date();
                 today.setHours(0,0,0,0);
                 
-                // 期限が今日以降の課題のみ表示
                 const filtered = data.filter(t => new Date(t.deadline) >= today);
                 list.innerHTML = filtered.map(t => 
                     `<div class='border-b p-2'><strong>${t.name}</strong><br>期限: ${t.deadline}</div>`
@@ -38,15 +37,21 @@
 
         function addTask() {
             fetch(GAS_URL, {
-                method: "POST", mode: "no-cors",
+                method: "POST",
+                headers: { "Content-Type": "text/plain" },
                 body: JSON.stringify({
-                    type: "create_task", student_class: myClass,
+                    type: "create_task", 
+                    student_class: myClass,
                     task_name: document.getElementById("tName").value,
                     deadline: document.getElementById("tDeadline").value
                 })
             }).then(() => { 
                 alert("課題を追加しました");
+                document.getElementById("tName").value = "";
                 loadTasks(); 
+            }).catch(err => {
+                console.error("送信エラー:", err);
+                alert("送信に失敗しました。GASのデプロイ設定を確認してください。");
             });
         }
         loadTasks();
