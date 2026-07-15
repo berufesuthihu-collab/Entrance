@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>課題管理</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-5">
+    <div class="max-w-md mx-auto bg-white p-6 rounded shadow">
+        <h2 class="text-xl font-bold mb-4" id="class-title"></h2>
+        <div class="mb-6">
+            <input type="text" id="tName" placeholder="課題名" class="w-full p-2 border mb-2">
+            <input type="date" id="tDeadline" class="w-full p-2 border mb-2">
+            <button onclick="addTask()" class="w-full bg-blue-500 text-white p-2">課題を追加</button>
+        </div>
+        <div id="taskList"></div>
+    </div>
+    <script>
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbxhoW2HiSY3DnwC34rvHQ-E1aJinCq7Zku08agTM-9caSFhIz8m8kN24wF4A8tMJpLyqA/exec"; // ここにGASのURLを貼り付け
+        const myClass = localStorage.getItem("student_class");
+        document.getElementById("class-title").innerText = myClass + "組の課題";
+
+        function loadTasks() {
+            fetch(`${GAS_URL}?mode=tasks&class=${myClass}`)
+            .then(res => res.json()).then(data => {
+                const list = document.getElementById("taskList");
+                list.innerHTML = data.map(t => `<div class='border-b p-2'>${t.name} (期限: ${t.deadline})</div>`).join('');
+            });
+        }
+
+        function addTask() {
+            fetch(GAS_URL, {
+                method: "POST", mode: "no-cors",
+                body: JSON.stringify({
+                    type: "create_task", student_class: myClass,
+                    task_name: document.getElementById("tName").value,
+                    deadline: document.getElementById("tDeadline").value
+                })
+            }).then(() => { loadTasks(); });
+        }
+        loadTasks();
+    </script>
+</body>
+</html>
