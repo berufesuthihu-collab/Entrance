@@ -4,56 +4,89 @@
     <meta charset="UTF-8">
     <title>課題管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
-<body class="bg-gray-100 p-5">
-    <div class="max-w-md mx-auto bg-white p-6 rounded shadow">
-        <h2 class="text-xl font-bold mb-4" id="class-title"></h2>
+<body class="bg-slate-900 text-slate-100 p-5">
+    <div class="max-w-md mx-auto bg-slate-800 p-6 rounded-xl shadow-lg border border-slate-700">
+        <h2 class="text-xl font-bold mb-4 text-sky-400" id="class-title"></h2>
         <div class="mb-6">
-            <input type="text" id="tName" placeholder="課題名" class="w-full p-2 border mb-2">
-            <input type="date" id="tDeadline" class="w-full p-2 border mb-2">
-            <button onclick="addTask()" class="w-full bg-blue-500 text-white p-2">課題を追加</button>
+            <input type="text" id="tName" placeholder="課題名" class="w-full p-2 rounded bg-slate-900 border border-slate-700 text-slate-100 mb-2 focus:outline-none focus:border-sky-500">
+            <input type="date" id="tDeadline" class="w-full p-2 rounded bg-slate-900 border border-slate-700 text-slate-100 mb-2 focus:outline-none focus:border-sky-500">
+            <button onclick="addTask()" class="w-full bg-sky-600 hover:bg-sky-500 text-white p-2 rounded transition font-bold">課題を追加</button>
         </div>
-        <div id="taskList"></div>
+        <div id="taskList" class="space-y-2"></div>
     </div>
     <script>
-        const GAS_URL = "https://script.google.com/macros/s/AKfycby95zICBe7Z4mKhTANpT1mS1djbGy5hinsVSmfI5058utAzix4xnY0Fjmeuthz6Uw-W/exec";
+        // ==========================================
+        // Supabase 接続設定 (ご自身の情報に書き換えてください)
+        // ==========================================
+        const SUPABASE_URL = 'https://ykeaficegkxzmgohccnw.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable__aUe6wyDdQAcB7k8pOrlPw_zOt4_ltz';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         const myClass = localStorage.getItem("student_class");
         document.getElementById("class-title").innerText = (myClass || "未設定") + "組の課題";
 
-        function loadTasks() {
+        async function loadTasks() {
             if(!myClass) return;
-            fetch(`${GAS_URL}?mode=tasks&class=${myClass}`)
-            .then(res => res.json()).then(data => {
-                const list = document.getElementById("taskList");
-                const today = new Date();
-                today.setHours(0,0,0,0);
-                
-                const filtered = data.filter(t => new Date(t.deadline) >= today);
-                list.innerHTML = filtered.map(t => 
-                    `<div class='border-b p-2'><strong>${t.name}</strong><br>期限: ${t.deadline}</div>`
-                ).join('');
-            });
+
+            // Supabaseの tasks テーブルから該当クラスの課題を取得
+            const { data, error } = await supabase
+                .from('tasks')
+                .select('*')
+                .eq('student_class', myClass);
+
+            if (error) {
+                console.error("データ取得エラー:", error);
+                return;
+            }
+
+            const list = document.getElementById("taskList");
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            // 期限が過ぎていないものをフィルタリング
+            const filtered = data.filter(t => new Date(t.deadline) >= today);
+            
+            if (filtered.length === 0) {
+                list.innerHTML = '<p class="text-slate-500 text-sm italic text-center py-4">現在、登録されている課題はありません。</p>';
+                return;
+            }
+
+            list.innerHTML = filtered.map(t => 
+                `<div class='border-b border-slate-700 p-2'><strong>${t.task_name}</strong><br><span class="text-slate-400 text-sm">期限: ${t.deadline}</span></div>`
+            ).join('');
         }
 
-        function addTask() {
-            fetch(GAS_URL, {
-                method: "POST",
-                headers: { "Content-Type": "text/plain" },
-                body: JSON.stringify({
-                    type: "create_task", 
+        async function addTask() {
+            const taskName = document.getElementById("tName").value.trim();
+            const deadline = document.getElementById("tDeadline").value;
+
+            if (!taskName || !deadline) {
+                alert("課題名と期限を入力してください");
+                return;
+            }
+
+            // Supabaseの tasks テーブルへ挿入
+            const { error } = await supabase.from('tasks').insert([
+                {
                     student_class: myClass,
-                    task_name: document.getElementById("tName").value,
-                    deadline: document.getElementById("tDeadline").value
-                })
-            }).then(() => { 
+                    task_name: taskName,
+                    deadline: deadline
+                }
+            ]);
+
+            if (error) {
+                console.error("送信エラー:", error);
+                alert("送信に失敗しました: " + error.message);
+            } else {
                 alert("課題を追加しました");
                 document.getElementById("tName").value = "";
+                document.getElementById("tDeadline").value = "";
                 loadTasks(); 
-            }).catch(err => {
-                console.error("送信エラー:", err);
-                alert("送信に失敗しました。GASのデプロイ設定を確認してください。");
-            });
+            }
         }
+
         loadTasks();
     </script>
 </body>

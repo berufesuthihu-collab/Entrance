@@ -5,76 +5,96 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>【管理画面】本日の出席者一覧</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>body { font-family: 'Helvetica Neue', Arial, sans-serif; }</style>
 </head>
-<body class="bg-slate-50 text-slate-800 p-4 md:p-10">
+<body class="bg-slate-900 text-slate-100 p-4 md:p-10">
 
-<div class="max-w-2xl mx-auto bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-slate-100">
-    <div class="border-b border-sky-100 pb-4 mb-6">
-        <h2 class="text-2xl font-bold text-sky-600 flex items-center gap-2">
+<div class="max-w-2xl mx-auto bg-slate-800 p-6 md:p-8 rounded-2xl shadow-lg border border-slate-700">
+    <div class="border-b border-slate-700 pb-4 mb-6">
+        <h2 class="text-2xl font-bold text-sky-400 flex items-center gap-2">
             📊 本日の出席者一覧
         </h2>
-        <p class="text-slate-500 text-sm mt-1">クラス・出席番号が重複する場合は最新のスキャン結果のみ表示されます</p>
+        <p class="text-slate-400 text-sm mt-1">クラス・出席番号が重複する場合は最新のスキャン結果のみ表示されます</p>
     </div>
     
     <div class="flex flex-col sm:flex-row gap-4 mb-6 items-stretch sm:items-center justify-between">
-        <button class="bg-teal-500 hover:bg-teal-600 active:bg-teal-700 text-white font-bold px-5 py-2.5 rounded-lg transition duration-200 shadow-sm flex items-center justify-center gap-2" onclick="fetchAttendanceList()">
+        <button class="bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-bold px-5 py-2.5 rounded-lg transition duration-200 shadow-sm flex items-center justify-center gap-2" onclick="fetchAttendanceList()">
             🔄 情報を更新
         </button>
         
         <div class="flex items-center gap-2">
-            <label for="class-filter" class="text-sm font-semibold text-slate-600 whitespace-nowrap">クラス絞り込み:</label>
-            <select id="class-filter" onchange="filterList()" class="bg-slate-100 border border-slate-200 text-slate-700 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 w-full sm:w-auto">
+            <label for="class-filter" class="text-sm font-semibold text-slate-300 whitespace-nowrap">クラス絞り込み:</label>
+            <select id="class-filter" onchange="filterList()" class="bg-slate-900 border border-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 w-full sm:w-auto">
                 <option value="all">すべて表示</option>
             </select>
         </div>
     </div>
     
-    <div class="text-right text-sm text-slate-600 font-medium mb-4">
-        本日の出席人数: <span id="total-count" class="text-lg font-bold text-sky-600">0</span> 名
-        <span id="filtered-count-wrapper" class="hidden">（絞り込み後: <span id="filtered-count" class="text-lg font-bold text-teal-600">0</span> 名）</span>
+    <div class="text-right text-sm text-slate-400 font-medium mb-4">
+        本日の出席人数: <span id="total-count" class="text-lg font-bold text-sky-400">0</span> 名
+        <span id="filtered-count-wrapper" class="hidden">（絞り込み後: <span id="filtered-count" class="text-lg font-bold text-teal-400">0</span> 名）</span>
     </div>
 
-    <div class="overflow-hidden border border-slate-100 rounded-xl shadow-inner">
+    <div class="overflow-hidden border border-slate-700 rounded-xl shadow-inner">
         <table class="w-full text-center border-collapse">
             <thead>
-                <tr class="bg-slate-100 border-b border-slate-200">
-                    <th class="py-3.5 px-4 font-bold text-slate-600 text-sm">クラス</th>
-                    <th class="py-3.5 px-4 font-bold text-slate-600 text-sm">出席番号</th>
-                    <th class="py-3.5 px-4 font-bold text-slate-600 text-sm">最終スキャン時刻</th>
+                <tr class="bg-slate-900/60 border-b border-slate-700">
+                    <th class="py-3.5 px-4 font-bold text-slate-300 text-sm">クラス</th>
+                    <th class="py-3.5 px-4 font-bold text-slate-300 text-sm">出席番号</th>
+                    <th class="py-3.5 px-4 font-bold text-slate-300 text-sm">最終スキャン時刻</th>
                 </tr>
             </thead>
             <tbody id="list-body">
-                <tr><td colspan="3" class="py-10 text-slate-400 italic">データを読み込み中...</td></tr>
+                <tr><td colspan="3" class="py-10 text-slate-500 italic">データを読み込み中...</td></tr>
             </tbody>
         </table>
     </div>
 </div>
 
 <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycby95zICBe7Z4mKhTANpT1mS1djbGy5hinsVSmfI5058utAzix4xnY0Fjmeuthz6Uw-W/exec";
+    // ==========================================
+    // Supabase 接続設定 (ご自身の情報に書き換えてください)
+    // ==========================================
+    const SUPABASE_URL = 'https://ykeaficegkxzmgohccnw.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable__aUe6wyDdQAcB7k8pOrlPw_zOt4_ltz';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
     let allAttendanceData = [];
 
-    function fetchAttendanceList() {
-        fetch(GAS_URL)
-        .then(res => res.json())
-        .then(data => {
+    async function fetchAttendanceList() {
+        try {
+            // Supabaseの attendance テーブルからデータを取得（作成日時の古い順）
+            const { data, error } = await supabase
+                .from('attendance')
+                .select('*')
+                .order('created_at', { ascending: true });
+
+            if (error) throw error;
+
             // 重複排除ロジック：同じクラス・番号なら最新（最後）のデータを優先
             const latestMap = new Map();
             data.forEach(item => {
-                const key = `${item.class}-${item.num}`;
-                // データが時間順に並んでいる前提。もし最新が不明ならここでDate変換比較が必要です
-                latestMap.set(key, item);
+                const key = `${item.student_class}-${item.student_num}`;
+                // 読みやすい日時にフォーマット
+                const dateObj = new Date(item.created_at);
+                const timeStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString();
+
+                latestMap.set(key, {
+                    class: item.student_class,
+                    num: item.student_num,
+                    time: timeStr
+                });
             });
             
             allAttendanceData = Array.from(latestMap.values());
             updateClassFilterOptions(allAttendanceData);
             renderTable(allAttendanceData);
-        })
-        .catch(err => {
+
+        } catch (err) {
             console.error(err);
-            document.getElementById("list-body").innerHTML = '<tr><td colspan="3" class="py-10 text-red-500">⚠️ 取得失敗</td></tr>';
-        });
+            document.getElementById("list-body").innerHTML = '<tr><td colspan="3" class="py-10 text-red-400">⚠️ 取得失敗: ' + err.message + '</td></tr>';
+        }
     }
 
     function updateClassFilterOptions(data) {
@@ -96,17 +116,17 @@
         document.getElementById("total-count").innerText = data.length;
 
         if (data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="3" class="py-10 text-slate-400 italic">本日出席した生徒はいません。</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="3" class="py-10 text-slate-500 italic">本日出席した生徒はいません。</td></tr>';
             return;
         }
 
         data.forEach(student => {
             const tr = document.createElement("tr");
-            tr.className = "hover:bg-slate-50 transition border-b border-slate-100";
+            tr.className = "hover:bg-slate-700/50 transition border-b border-slate-700/60";
             tr.innerHTML = `
-                <td class="py-3 px-4"><span class="bg-sky-50 text-sky-700 font-bold px-3 py-1 rounded-full text-xs">${student.class}組</span></td>
-                <td class="py-3 px-4 font-semibold text-slate-700">${student.num} 番</td>
-                <td class="py-3 px-4 text-slate-500 text-sm">${student.time}</td>
+                <td class="py-3 px-4"><span class="bg-sky-950 text-sky-300 border border-sky-800 font-bold px-3 py-1 rounded-full text-xs">${student.class}組</span></td>
+                <td class="py-3 px-4 font-semibold text-slate-200">${student.num} 番</td>
+                <td class="py-3 px-4 text-slate-400 text-sm">${student.time}</td>
             `;
             tbody.appendChild(tr);
         });

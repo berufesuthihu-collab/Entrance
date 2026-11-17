@@ -10,22 +10,32 @@
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
             text-align: center;
-            background-color: #f5f7fb;
-            color: #333;
+            background-color: #0f172a; /* シックなダーク背景 */
+            color: #f1f5f9;
             padding: 50px 20px;
         }
         .container {
             max-width: 400px;
             margin: 0 auto;
-            background: white;
+            background: #1e293b; /* カード部分の背景（濃いグレー） */
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            border: 1px solid #334155;
+        }
+        h2 {
+            color: #f8fafc;
+        }
+        p {
+            color: #94a3b8;
         }
         #qrcode {
             display: flex;
             justify-content: center;
             margin: 30px 0;
+            background: #ffffff; /* 読み取りやすさのためQRコードの背景は白を維持 */
+            padding: 15px;
+            border-radius: 8px;
         }
     </style>
 </head>
